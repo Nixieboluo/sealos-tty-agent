@@ -3,18 +3,18 @@ import type { Server as HttpServer, IncomingMessage } from 'node:http'
 import type { Socket } from 'node:net'
 import type { RawData } from 'ws'
 import type WebSocket from 'ws'
-import type { ClientFrame } from './protocol.ts'
 import type { Session, WsConnection } from './terminal-session.ts'
+import type { ClientFrame } from './utils/protocol.ts'
 import { randomUUID } from 'node:crypto'
 import { WebSocketServer } from 'ws'
-import { Config } from './config.ts'
-import { parseExecQuery, parseUrl } from './http-utils.ts'
-import { logInfo, logWarn } from './logger.ts'
-import { safeParseClientFrame, toErrorMessage } from './protocol.ts'
 import { cleanupSession, sendCtrl, startExecIfNeeded } from './terminal-session.ts'
-import { markAliveOnPong, startHeartbeat } from './ws-heartbeat.ts'
-import { rawToBuffer, rawToString } from './ws-message.ts'
-import { createWsStreams } from './ws-streams.ts'
+import { Config } from './utils/config.ts'
+import { parseExecQuery, parseUrl } from './utils/http-utils.ts'
+import { logInfo, logWarn } from './utils/logger.ts'
+import { safeParseClientFrame, toErrorMessage } from './utils/protocol.ts'
+import { markAliveOnPong, startHeartbeat } from './utils/ws-heartbeat.ts'
+import { rawToBuffer, rawToString } from './utils/ws-message.ts'
+import { createWsStreams } from './utils/ws-streams.ts'
 import { consumeWsTicket } from './ws-ticket.ts'
 
 type WsSendable = string | Uint8Array
@@ -56,7 +56,7 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 
 	server.on('upgrade', (req: IncomingMessage, socket: Socket, head: Buffer) => {
 		const url = parseUrl(req)
-		if (url.pathname !== '/api/terminal/exec') {
+		if (url.pathname !== '/exec') {
 			socket.destroy()
 			return
 		}

@@ -61,8 +61,8 @@ const ConfigFileSchema = z.object({
 export const Config: Mutable<AppConfig> = { ...DEFAULT_CONFIG }
 
 export async function loadConfig(): Promise<void> {
-	// `src/config.ts` -> project root `config.json`
-	const configUrl = new URL('../config.json', import.meta.url)
+	// `src/utils/config.ts` -> project root `config.json`
+	const configUrl = new URL('../../config.json', import.meta.url)
 
 	let raw: string
 	try {

@@ -1,10 +1,10 @@
-import type { ExecTarget } from './http-utils.ts'
+import type { ExecTarget } from './utils/http-utils.ts'
 import { Buffer } from 'node:buffer'
 import { createServer } from 'node:http'
 import { z } from 'zod'
-import { Config } from './config.ts'
-import { HTTP_ERRORS, parseUrl, readBody, sendJson, sendJsonError } from './http-utils.ts'
-import { toErrorMessage } from './protocol.ts'
+import { Config } from './utils/config.ts'
+import { HTTP_ERRORS, parseUrl, readBody, sendJson, sendJsonError } from './utils/http-utils.ts'
+import { toErrorMessage } from './utils/protocol.ts'
 import { issueWsTicket } from './ws-ticket.ts'
 
 const WsTicketRequestSchema = z.object({

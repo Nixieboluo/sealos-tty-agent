@@ -1,7 +1,7 @@
-import { Config, loadConfig } from './config.ts'
 import { createHttpServer } from './http-server.ts'
-import { logInfo } from './logger.ts'
 import { attachTerminalWebSocketServer } from './terminal-ws.ts'
+import { Config, loadConfig } from './utils/config.ts'
+import { logInfo } from './utils/logger.ts'
 
 async function main(): Promise<void> {
 	await loadConfig()

@@ -1,6 +1,6 @@
-import type { ExecTarget } from './http-utils.ts'
+import type { ExecTarget } from './utils/http-utils.ts'
 import { randomUUID } from 'node:crypto'
-import { Config } from './config.ts'
+import { Config } from './utils/config.ts'
 
 export type TicketIssueMeta = {
 	ip?: string
@@ -73,11 +73,7 @@ export function consumeWsTicket(ticket: string, _meta: TicketIssueMeta): Consume
 		return { ok: false, error: 'Ticket expired.' }
 	}
 
-	// Optional binding checks: if ticket was issued with IP/UA, enforce exact match.
-	// if (rec.meta.ip && meta.ip && rec.meta.ip !== meta.ip)
-	// 	return { ok: false, error: 'Ticket IP mismatch.' }
-	// if (rec.meta.userAgent && meta.userAgent && rec.meta.userAgent !== meta.userAgent)
-	// 	return { ok: false, error: 'Ticket User-Agent mismatch.' }
+	// [TODO] Additional checks: if ticket was issued with IP/UA, enforce exact match.
 
 	rec.used = true
 	store.delete(ticket)
