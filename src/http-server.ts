@@ -12,11 +12,24 @@ const WsTicketRequestSchema = z.object({
 	namespace: z.string().trim().min(1),
 	pod: z.string().trim().min(1),
 	container: z.string().trim().min(1).optional(),
+	command: z.array(z.string().trim().min(1)).min(1).optional(),
 }).strict()
 
 export function createHttpServer() {
 	return createServer((req, res) => {
+		// CORS (keep it simple for API usage from browsers)
+		res.setHeader('access-control-allow-origin', '*')
+		res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS')
+		res.setHeader('access-control-allow-headers', 'content-type')
+		res.setHeader('access-control-max-age', '600')
+
 		const url = parseUrl(req)
+		if (req.method === 'OPTIONS') {
+			res.statusCode = 204
+			res.end()
+			return
+		}
+
 		if (req.method === 'GET' && url.pathname === '/') {
 			sendJson(res, 200, { name: 'sealos-tty-agent', ok: true })
 			return
@@ -57,12 +70,13 @@ export function createHttpServer() {
 						return
 					}
 
-					const { kubeconfig: kubeconfigRaw, namespace, pod, container } = parsed.data
+					const { kubeconfig: kubeconfigRaw, namespace, pod, container, command } = parsed.data
 
 					const target: ExecTarget = {
 						namespace,
 						pod,
 						container: typeof container === 'string' && container.length > 0 ? container : undefined,
+						command: Array.isArray(command) && command.length > 0 ? command : undefined,
 					}
 
 					const kubeconfig = kubeconfigRaw

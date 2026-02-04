@@ -19,6 +19,11 @@ export type ExecTarget = {
 	namespace: string
 	pod: string
 	container?: string
+	/**
+	 * Optional exec command override (argv array).
+	 * When omitted, server will try common shells (bash/sh/ash).
+	 */
+	command?: string[]
 }
 
 export type ExecQuery = {
