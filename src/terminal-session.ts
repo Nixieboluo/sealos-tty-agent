@@ -1,12 +1,12 @@
 import type { V1Status } from '@kubernetes/client-node'
-import type { ExecQuery } from './http-utils.ts'
+import type { ExecTarget } from './http-utils.ts'
 import type { ServerFrame } from './protocol.ts'
 import type { WsStreams } from './ws-streams.ts'
 import { pipeline } from 'node:stream'
 import * as k8s from '@kubernetes/client-node'
 
 import { DEBUG } from './config.ts'
-import { loadKubeConfig, loadKubeConfigFromString } from './k8s/kubeconfig.ts'
+import { loadKubeConfigFromString } from './k8s/kubeconfig.ts'
 import { ResizableStdout } from './k8s/resizable-stdout.ts'
 import { debugLog } from './logger.ts'
 import { safeJsonStringify, toErrorMessage } from './protocol.ts'
@@ -15,7 +15,6 @@ export type WsSendable = string | Uint8Array
 
 export type WsConnection = {
 	id: string
-	query: ExecQuery
 	send: (data: WsSendable) => void
 	close: (code?: number, reason?: string) => void
 }
@@ -26,6 +25,7 @@ export type Session = {
 	stdout?: ResizableStdout
 	k8sWs?: { close: () => void }
 	kubeconfig?: string
+	target?: ExecTarget
 	streams: WsStreams
 }
 
@@ -80,9 +80,33 @@ export async function startExecIfNeeded(
 	sess.starting = true
 	debugLog('starting exec', { id: conn.id, size })
 
-	const kc = typeof sess.kubeconfig === 'string' && sess.kubeconfig.length > 0
-		? loadKubeConfigFromString(sess.kubeconfig)
-		: loadKubeConfig()
+	if (typeof sess.kubeconfig !== 'string' || sess.kubeconfig.length === 0) {
+		sess.starting = false
+		sendCtrl(conn, {
+			type: 'error',
+			message: 'Missing kubeconfig. Authenticate first: send { "type": "auth", "ticket": "..." } as the first WebSocket message (or pass ticket via ?ticket=...).',
+		})
+		try {
+			conn.close(1008, 'missing kubeconfig')
+		}
+		catch {}
+		return
+	}
+
+	if (!sess.target) {
+		sess.starting = false
+		sendCtrl(conn, {
+			type: 'error',
+			message: 'Missing exec target. Request a ticket with namespace/pod/container first.',
+		})
+		try {
+			conn.close(1008, 'missing target')
+		}
+		catch {}
+		return
+	}
+
+	const kc = loadKubeConfigFromString(sess.kubeconfig)
 
 	const stdout = new ResizableStdout()
 	stdout.resize(size.cols, size.rows)
@@ -104,9 +128,9 @@ export async function startExecIfNeeded(
 
 	try {
 		const k8sWs = await exec.exec(
-			conn.query.namespace,
-			conn.query.pod,
-			conn.query.container ?? '',
+			sess.target.namespace,
+			sess.target.pod,
+			sess.target.container ?? '',
 			['/bin/sh', '-i'],
 			stdout,
 			stdout,

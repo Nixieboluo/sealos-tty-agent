@@ -3,12 +3,11 @@ import type { Server as HttpServer, IncomingMessage } from 'node:http'
 import type { Socket } from 'node:net'
 import type { RawData } from 'ws'
 import type WebSocket from 'ws'
-import type { ExecQuery } from './http-utils.ts'
 import type { ClientFrame } from './protocol.ts'
 import type { Session, WsConnection } from './terminal-session.ts'
 import { randomUUID } from 'node:crypto'
 import { WebSocketServer } from 'ws'
-import { WS_HEARTBEAT_INTERVAL_MS, WS_MAX_PAYLOAD } from './config.ts'
+import { WS_ALLOWED_ORIGINS, WS_AUTH_TIMEOUT_MS, WS_HEARTBEAT_INTERVAL_MS, WS_MAX_PAYLOAD } from './config.ts'
 import { parseExecQuery, parseUrl } from './http-utils.ts'
 import { debugLog } from './logger.ts'
 import { isClientFrame, toErrorMessage } from './protocol.ts'
@@ -16,14 +15,30 @@ import { cleanupSession, sendCtrl, startExecIfNeeded } from './terminal-session.
 import { markAliveOnPong, startHeartbeat } from './ws-heartbeat.ts'
 import { rawToBuffer, rawToString } from './ws-message.ts'
 import { createWsStreams } from './ws-streams.ts'
+import { consumeWsTicket } from './ws-ticket.ts'
 
 type WsSendable = string | Uint8Array
 
-function makeConnection(ws: WebSocket, query: ExecQuery): WsConnection {
+function isOriginAllowed(origin: string | undefined): boolean {
+	const allow = WS_ALLOWED_ORIGINS
+	if (!allow)
+		return true
+	if (typeof origin !== 'string' || origin.length === 0)
+		return false
+	const allowed = allow.split(',').map(s => s.trim()).filter(Boolean)
+	return allowed.includes(origin)
+}
+
+function getPeerMeta(req: IncomingMessage): { ip?: string, userAgent?: string } {
+	const ip = req.socket.remoteAddress
+	const userAgent = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined
+	return { ip: typeof ip === 'string' && ip.length > 0 ? ip : undefined, userAgent }
+}
+
+function makeConnection(ws: WebSocket): WsConnection {
 	const id = randomUUID()
 	return {
 		id,
-		query,
 		send: (data: WsSendable) => ws.send(data),
 		close: (code?: number, reason?: string) => ws.close(code, reason),
 	}
@@ -47,6 +62,11 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 			return
 		}
 
+		if (!isOriginAllowed(typeof req.headers.origin === 'string' ? req.headers.origin : undefined)) {
+			socket.destroy()
+			return
+		}
+
 		wss.handleUpgrade(req, socket, head, (ws) => {
 			wss.emit('connection', ws, req)
 		})
@@ -61,33 +81,90 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 			return
 		}
 
-		const conn = makeConnection(ws, parsed.query)
-		debugLog('ws open', { id: conn.id, query: conn.query })
+		const conn = makeConnection(ws)
+		debugLog('ws open', { id: conn.id, query: parsed.query })
 
 		const streams = createWsStreams(ws)
+		const meta = getPeerMeta(req)
 		sessions.set(conn.id, {
 			started: false,
 			starting: false,
 			streams,
 		})
 
+		// Optional: allow passing ticket in URL query for non-browser clients.
+		const initialTicket = parsed.query.ticket
+		if (typeof initialTicket === 'string' && initialTicket.length > 0) {
+			const r = consumeWsTicket(initialTicket, meta)
+			if (!r.ok) {
+				sendCtrl(conn, { type: 'error', message: r.error })
+				try {
+					conn.close(1008, 'invalid ticket')
+				}
+				catch {}
+				return
+			}
+			const sess = sessions.get(conn.id)
+			if (sess) {
+				sess.kubeconfig = r.kubeconfig
+				sess.target = r.target
+				sendCtrl(conn, { type: 'authed' })
+			}
+		}
+
 		sendCtrl(conn, { type: 'ready' })
+
+		const authTimeout = setTimeout(() => {
+			const sess = sessions.get(conn.id)
+			if (!sess)
+				return
+			if (typeof sess.kubeconfig === 'string' && sess.kubeconfig.length > 0)
+				return
+			sendCtrl(conn, { type: 'error', message: 'Auth timeout: first message must be { "type": "auth", "ticket": "..." }.' })
+			try {
+				conn.close(1008, 'auth timeout')
+			}
+			catch {}
+			sessions.delete(conn.id)
+			cleanupSession(sess)
+		}, Number.isFinite(WS_AUTH_TIMEOUT_MS) && WS_AUTH_TIMEOUT_MS > 0 ? WS_AUTH_TIMEOUT_MS : 10_000)
 
 		const handleCtrl = async (frame: ClientFrame): Promise<void> => {
 			const sess = sessions.get(conn.id)
 			if (!sess)
 				return
 
-			if (frame.type === 'init') {
-				if (!sess.started && !sess.starting) {
-					sess.kubeconfig = frame.kubeconfig
-					debugLog('init received', { id: conn.id, kubeconfigBytes: frame.kubeconfig.length })
+			if (frame.type === 'auth') {
+				if (typeof sess.kubeconfig === 'string' && sess.kubeconfig.length > 0) {
+					sendCtrl(conn, { type: 'authed' })
+					return
 				}
+				const r = consumeWsTicket(frame.ticket, meta)
+				if (!r.ok) {
+					sendCtrl(conn, { type: 'error', message: r.error })
+					try {
+						conn.close(1008, 'invalid ticket')
+					}
+					catch {}
+					return
+				}
+				sess.kubeconfig = r.kubeconfig
+				sess.target = r.target
+				sendCtrl(conn, { type: 'authed' })
 				return
 			}
 
 			if (frame.type === 'ping') {
 				sendCtrl(conn, { type: 'pong' })
+				return
+			}
+
+			if (typeof sess.kubeconfig !== 'string' || sess.kubeconfig.length === 0) {
+				sendCtrl(conn, { type: 'error', message: 'Not authenticated. First message must be { "type": "auth", "ticket": "..." }.' })
+				try {
+					conn.close(1008, 'not authenticated')
+				}
+				catch {}
 				return
 			}
 
@@ -118,6 +195,14 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 				return
 
 			if (isBinary) {
+				if (typeof sess.kubeconfig !== 'string' || sess.kubeconfig.length === 0) {
+					sendCtrl(conn, { type: 'error', message: 'Not authenticated. First message must be { "type": "auth", "ticket": "..." }.' })
+					try {
+						conn.close(1008, 'not authenticated')
+					}
+					catch {}
+					return
+				}
 				const buf = rawToBuffer(data)
 				try {
 					debugLog('stdin (binary)', { id: conn.id, bytes: buf.length })
@@ -161,6 +246,7 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 		})
 
 		ws.on('close', () => {
+			clearTimeout(authTimeout)
 			const sess = sessions.get(conn.id)
 			sessions.delete(conn.id)
 			if (!sess)

@@ -1,9 +1,13 @@
 import type { IncomingMessage } from 'node:http'
 
-export type ExecQuery = {
+export type ExecTarget = {
 	namespace: string
 	pod: string
 	container?: string
+}
+
+export type ExecQuery = {
+	ticket?: string
 }
 
 export function parseUrl(req: IncomingMessage): URL {
@@ -14,18 +18,11 @@ export function parseUrl(req: IncomingMessage): URL {
 
 export function parseExecQuery(req: IncomingMessage): { ok: true, query: ExecQuery } | { ok: false, error: string } {
 	const url = parseUrl(req)
-	const namespace = url.searchParams.get('namespace') ?? ''
-	const pod = url.searchParams.get('pod') ?? ''
-	const container = url.searchParams.get('container')
-	const containerValue = typeof container === 'string' && container.length > 0 ? container : undefined
-
-	if (!namespace)
-		return { ok: false, error: 'Missing required query: namespace' }
-	if (!pod)
-		return { ok: false, error: 'Missing required query: pod' }
+	const ticket = url.searchParams.get('ticket')
+	const ticketValue = typeof ticket === 'string' && ticket.length > 0 ? ticket : undefined
 
 	return {
 		ok: true,
-		query: { namespace, pod, container: containerValue },
+		query: { ticket: ticketValue },
 	}
 }

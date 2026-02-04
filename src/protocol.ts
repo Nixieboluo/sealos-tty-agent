@@ -1,11 +1,12 @@
 export type ClientFrame
-	= | { type: 'init', kubeconfig: string }
-		| { type: 'stdin', data: string }
+	= | { type: 'stdin', data: string }
+		| { type: 'auth', ticket: string }
 		| { type: 'resize', cols: number, rows: number }
 		| { type: 'ping' }
 
 export type ServerFrame
 	= | { type: 'ready' }
+		| { type: 'authed' }
 		| { type: 'started' }
 		| { type: 'stdout', data: string }
 		| { type: 'status', status: unknown }
@@ -62,8 +63,8 @@ export function isClientFrame(value: unknown): value is ClientFrame {
 		return false
 
 	const v = value as Record<string, unknown>
-	if (v['type'] === 'init')
-		return typeof v['kubeconfig'] === 'string'
+	if (v['type'] === 'auth')
+		return typeof v['ticket'] === 'string'
 	if (v['type'] === 'stdin')
 		return typeof v['data'] === 'string'
 	if (v['type'] === 'resize')

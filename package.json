@@ -7,8 +7,7 @@
 		"node": ">=22"
 	},
 	"scripts": {
-		"dev": "node --watch --experimental-strip-types src/index.ts",
-		"build": "tsc -p tsconfig.json",
+		"dev": "node --watch --watch-path=src --experimental-strip-types src/index.ts",
 		"start": "node --experimental-strip-types src/index.ts",
 		"lint": "eslint \"src/**/*.ts\" --ignore-pattern \"src/**/*.d.ts\"",
 		"typecheck": "tsc --noEmit"
