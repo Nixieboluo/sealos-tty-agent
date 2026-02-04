@@ -4,8 +4,6 @@ import type { WebSocketServer } from 'ws'
 type WsWithHeartbeat = WebSocket & { isAlive?: boolean }
 
 export function startHeartbeat(wss: WebSocketServer, intervalMs: number): () => void {
-	const ms = Number.isFinite(intervalMs) && intervalMs > 0 ? intervalMs : 30_000
-
 	const timer = setInterval(() => {
 		for (const client of wss.clients) {
 			const ws = client as WsWithHeartbeat
@@ -22,7 +20,7 @@ export function startHeartbeat(wss: WebSocketServer, intervalMs: number): () => 
 			}
 			catch {}
 		}
-	}, ms)
+	}, intervalMs)
 
 	timer.unref?.()
 

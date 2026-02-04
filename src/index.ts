@@ -1,10 +1,17 @@
-import { PORT } from './config.ts'
+import { Config, loadConfig } from './config.ts'
 import { createHttpServer } from './http-server.ts'
+import { logInfo } from './logger.ts'
 import { attachTerminalWebSocketServer } from './terminal-ws.ts'
 
-const server = createHttpServer()
-attachTerminalWebSocketServer(server)
+async function main(): Promise<void> {
+	await loadConfig()
 
-server.listen(PORT, () => {
-	console.warn(`sealos-tty-agent listening on http://localhost:${PORT}`)
-})
+	const server = createHttpServer()
+	attachTerminalWebSocketServer(server)
+
+	server.listen(Config.PORT, () => {
+		logInfo('listening', { url: `http://localhost:${Config.PORT}` })
+	})
+}
+
+void main()

@@ -1,8 +1,33 @@
-export type ClientFrame
-	= | { type: 'stdin', data: string }
-		| { type: 'auth', ticket: string }
-		| { type: 'resize', cols: number, rows: number }
-		| { type: 'ping' }
+import { z } from 'zod'
+
+const ClientStdinTextSchema = z.object({
+	type: z.literal('stdin'),
+	data: z.string(),
+}).strict()
+
+const ClientAuthSchema = z.object({
+	type: z.literal('auth'),
+	ticket: z.string().trim().min(1),
+}).strict()
+
+const ClientResizeSchema = z.object({
+	type: z.literal('resize'),
+	cols: z.number().int().min(1),
+	rows: z.number().int().min(1),
+}).strict()
+
+const ClientPingSchema = z.object({
+	type: z.literal('ping'),
+}).strict()
+
+export const ClientFrameSchema = z.discriminatedUnion('type', [
+	ClientStdinTextSchema,
+	ClientAuthSchema,
+	ClientResizeSchema,
+	ClientPingSchema,
+])
+
+export type ClientFrame = z.infer<typeof ClientFrameSchema>
 
 export type ServerFrame
 	= | { type: 'ready' }
@@ -59,17 +84,16 @@ export function toErrorMessage(err: unknown): string {
 }
 
 export function isClientFrame(value: unknown): value is ClientFrame {
-	if (value == null || typeof value !== 'object')
-		return false
+	return ClientFrameSchema.safeParse(value).success
+}
 
-	const v = value as Record<string, unknown>
-	if (v['type'] === 'auth')
-		return typeof v['ticket'] === 'string'
-	if (v['type'] === 'stdin')
-		return typeof v['data'] === 'string'
-	if (v['type'] === 'resize')
-		return typeof v['cols'] === 'number' && typeof v['rows'] === 'number'
-	if (v['type'] === 'ping')
-		return true
-	return false
+export function safeParseClientFrame(value: unknown): { ok: true, frame: ClientFrame } | { ok: false, error: string } {
+	const r = ClientFrameSchema.safeParse(value)
+	if (r.success)
+		return { ok: true, frame: r.data }
+
+	const detail = r.error.issues
+		.map(i => `${i.path.join('.') || '<root>'}: ${i.message}`)
+		.join('; ')
+	return { ok: false, error: detail }
 }

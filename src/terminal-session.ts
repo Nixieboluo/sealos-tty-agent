@@ -5,10 +5,9 @@ import type { WsStreams } from './ws-streams.ts'
 import { pipeline } from 'node:stream'
 import * as k8s from '@kubernetes/client-node'
 
-import { DEBUG } from './config.ts'
 import { loadKubeConfigFromString } from './k8s/kubeconfig.ts'
 import { ResizableStdout } from './k8s/resizable-stdout.ts'
-import { debugLog } from './logger.ts'
+import { logError, logInfo, logWarn } from './logger.ts'
 import { safeJsonStringify, toErrorMessage } from './protocol.ts'
 
 export type WsSendable = string | Uint8Array
@@ -31,14 +30,6 @@ export type Session = {
 
 export function sendCtrl(ws: WsConnection, payload: ServerFrame): void {
 	ws.send(safeJsonStringify(payload))
-}
-
-function formatExecError(err: unknown): string {
-	const msg = toErrorMessage(err)
-	if (/TLS handshake failed/i.test(msg) || /self[- ]signed/i.test(msg) || /CERT/i.test(msg)) {
-		return `${msg}\n\nHint: for debug UI, you can paste a kubeconfig with "insecure-skip-tls-verify: true".`
-	}
-	return msg
 }
 
 export function cleanupSession(sess: Session): void {
@@ -78,7 +69,13 @@ export async function startExecIfNeeded(
 		return
 
 	sess.starting = true
-	debugLog('starting exec', { id: conn.id, size })
+	logInfo('exec starting', {
+		id: conn.id,
+		target: sess.target
+			? { namespace: sess.target.namespace, pod: sess.target.pod, container: sess.target.container }
+			: undefined,
+		size,
+	})
 
 	if (typeof sess.kubeconfig !== 'string' || sess.kubeconfig.length === 0) {
 		sess.starting = false
@@ -115,8 +112,8 @@ export async function startExecIfNeeded(
 
 	// stdout/stderr -> wsOut (binary frames)
 	pipeline(stdout, sess.streams.wsOut, (err) => {
-		if (err && DEBUG)
-			console.warn('[tty-agent] wsOut pipeline error:', err)
+		if (err)
+			logWarn('wsOut pipeline error', { id: conn.id, error: toErrorMessage(err) })
 	})
 
 	const statusCallback = (status: V1Status) => {
@@ -144,17 +141,19 @@ export async function startExecIfNeeded(
 		sess.stdout = stdout
 		sess.k8sWs = k8sWs
 
-		debugLog('exec started', { id: conn.id })
+		logInfo('exec started', {
+			id: conn.id,
+			target: { namespace: sess.target.namespace, pod: sess.target.pod, container: sess.target.container },
+		})
 		sendCtrl(conn, { type: 'started' })
 	}
 	catch (err: unknown) {
 		sess.starting = false
 		cleanupSession(sess)
 
-		if (DEBUG)
-			console.error('k8s exec failed:', err)
+		logError('k8s exec failed', { id: conn.id, error: toErrorMessage(err) })
 
-		sendCtrl(conn, { type: 'error', message: formatExecError(err) })
+		sendCtrl(conn, { type: 'error', message: toErrorMessage(err) })
 		try {
 			conn.close(1011, 'k8s exec failed')
 		}

@@ -1,6 +1,6 @@
 import type { ExecTarget } from './http-utils.ts'
 import { randomUUID } from 'node:crypto'
-import { DEBUG, WS_TICKET_TTL_MS } from './config.ts'
+import { Config } from './config.ts'
 
 export type TicketIssueMeta = {
 	ip?: string
@@ -40,7 +40,7 @@ export function issueWsTicket(
 	cleanupExpiredTickets()
 
 	const ticket = randomUUID()
-	const expiresAt = now() + (Number.isFinite(WS_TICKET_TTL_MS) && WS_TICKET_TTL_MS > 0 ? WS_TICKET_TTL_MS : 60_000)
+	const expiresAt = now() + Config.WS_TICKET_TTL_MS
 
 	store.set(ticket, {
 		kubeconfig,
@@ -49,11 +49,6 @@ export function issueWsTicket(
 		used: false,
 		meta,
 	})
-
-	if (DEBUG) {
-		// Avoid logging sensitive kubeconfig content.
-		console.warn('[tty-agent] ws ticket issued', { ticket, expiresAt, hasIp: Boolean(meta.ip), hasUa: Boolean(meta.userAgent) })
-	}
 
 	return { ticket, expiresAt }
 }

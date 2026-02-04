@@ -7,10 +7,10 @@ import type { ClientFrame } from './protocol.ts'
 import type { Session, WsConnection } from './terminal-session.ts'
 import { randomUUID } from 'node:crypto'
 import { WebSocketServer } from 'ws'
-import { WS_ALLOWED_ORIGINS, WS_AUTH_TIMEOUT_MS, WS_HEARTBEAT_INTERVAL_MS, WS_MAX_PAYLOAD } from './config.ts'
+import { Config } from './config.ts'
 import { parseExecQuery, parseUrl } from './http-utils.ts'
-import { debugLog } from './logger.ts'
-import { isClientFrame, toErrorMessage } from './protocol.ts'
+import { logInfo, logWarn } from './logger.ts'
+import { safeParseClientFrame, toErrorMessage } from './protocol.ts'
 import { cleanupSession, sendCtrl, startExecIfNeeded } from './terminal-session.ts'
 import { markAliveOnPong, startHeartbeat } from './ws-heartbeat.ts'
 import { rawToBuffer, rawToString } from './ws-message.ts'
@@ -20,13 +20,12 @@ import { consumeWsTicket } from './ws-ticket.ts'
 type WsSendable = string | Uint8Array
 
 function isOriginAllowed(origin: string | undefined): boolean {
-	const allow = WS_ALLOWED_ORIGINS
-	if (!allow)
+	const allow = Config.WS_ALLOWED_ORIGINS
+	if (allow.length === 0)
 		return true
 	if (typeof origin !== 'string' || origin.length === 0)
 		return false
-	const allowed = allow.split(',').map(s => s.trim()).filter(Boolean)
-	return allowed.includes(origin)
+	return allow.includes(origin)
 }
 
 function getPeerMeta(req: IncomingMessage): { ip?: string, userAgent?: string } {
@@ -47,11 +46,11 @@ function makeConnection(ws: WebSocket): WsConnection {
 export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServer {
 	const wss = new WebSocketServer({
 		noServer: true,
-		maxPayload: Number.isFinite(WS_MAX_PAYLOAD) && WS_MAX_PAYLOAD > 0 ? WS_MAX_PAYLOAD : 1024 * 1024,
+		maxPayload: Config.WS_MAX_PAYLOAD,
 		perMessageDeflate: false,
 	})
 
-	startHeartbeat(wss, WS_HEARTBEAT_INTERVAL_MS)
+	startHeartbeat(wss, Config.WS_HEARTBEAT_INTERVAL_MS)
 
 	const sessions = new Map<string, Session>()
 
@@ -82,7 +81,7 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 		}
 
 		const conn = makeConnection(ws)
-		debugLog('ws open', { id: conn.id, query: parsed.query })
+		logInfo('ws connected', { id: conn.id })
 
 		const streams = createWsStreams(ws)
 		const meta = getPeerMeta(req)
@@ -97,6 +96,7 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 		if (typeof initialTicket === 'string' && initialTicket.length > 0) {
 			const r = consumeWsTicket(initialTicket, meta)
 			if (!r.ok) {
+				logWarn('ws auth failed (query ticket)', { id: conn.id, error: r.error })
 				sendCtrl(conn, { type: 'error', message: r.error })
 				try {
 					conn.close(1008, 'invalid ticket')
@@ -109,6 +109,7 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 				sess.kubeconfig = r.kubeconfig
 				sess.target = r.target
 				sendCtrl(conn, { type: 'authed' })
+				logInfo('ws authed (query ticket)', { id: conn.id })
 			}
 		}
 
@@ -121,13 +122,14 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 			if (typeof sess.kubeconfig === 'string' && sess.kubeconfig.length > 0)
 				return
 			sendCtrl(conn, { type: 'error', message: 'Auth timeout: first message must be { "type": "auth", "ticket": "..." }.' })
+			logWarn('ws auth timeout', { id: conn.id })
 			try {
 				conn.close(1008, 'auth timeout')
 			}
 			catch {}
 			sessions.delete(conn.id)
 			cleanupSession(sess)
-		}, Number.isFinite(WS_AUTH_TIMEOUT_MS) && WS_AUTH_TIMEOUT_MS > 0 ? WS_AUTH_TIMEOUT_MS : 10_000)
+		}, Config.WS_AUTH_TIMEOUT_MS)
 
 		const handleCtrl = async (frame: ClientFrame): Promise<void> => {
 			const sess = sessions.get(conn.id)
@@ -141,6 +143,7 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 				}
 				const r = consumeWsTicket(frame.ticket, meta)
 				if (!r.ok) {
+					logWarn('ws auth failed (message)', { id: conn.id, error: r.error })
 					sendCtrl(conn, { type: 'error', message: r.error })
 					try {
 						conn.close(1008, 'invalid ticket')
@@ -151,6 +154,7 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 				sess.kubeconfig = r.kubeconfig
 				sess.target = r.target
 				sendCtrl(conn, { type: 'authed' })
+				logInfo('ws authed (message)', { id: conn.id })
 				return
 			}
 
@@ -161,6 +165,7 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 
 			if (typeof sess.kubeconfig !== 'string' || sess.kubeconfig.length === 0) {
 				sendCtrl(conn, { type: 'error', message: 'Not authenticated. First message must be { "type": "auth", "ticket": "..." }.' })
+				logWarn('ws rejected: not authenticated', { id: conn.id })
 				try {
 					conn.close(1008, 'not authenticated')
 				}
@@ -173,14 +178,12 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 					await startExecIfNeeded(conn, sess, { cols: frame.cols, rows: frame.rows })
 					return
 				}
-				debugLog('resize', { id: conn.id, size: { cols: frame.cols, rows: frame.rows } })
 				sess.stdout?.resize(frame.cols, frame.rows)
 				return
 			}
 
 			if (frame.type === 'stdin') {
 				try {
-					debugLog('stdin', { id: conn.id, bytes: frame.data.length })
 					sess.streams.stdin.write(frame.data)
 				}
 				catch (err: unknown) {
@@ -197,6 +200,7 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 			if (isBinary) {
 				if (typeof sess.kubeconfig !== 'string' || sess.kubeconfig.length === 0) {
 					sendCtrl(conn, { type: 'error', message: 'Not authenticated. First message must be { "type": "auth", "ticket": "..." }.' })
+					logWarn('ws rejected (binary): not authenticated', { id: conn.id })
 					try {
 						conn.close(1008, 'not authenticated')
 					}
@@ -205,7 +209,6 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 				}
 				const buf = rawToBuffer(data)
 				try {
-					debugLog('stdin (binary)', { id: conn.id, bytes: buf.length })
 					sess.streams.stdin.write(buf)
 				}
 				catch (err: unknown) {
@@ -223,13 +226,15 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 				return
 			}
 
-			if (!isClientFrame(value)) {
+			const parsedFrame = safeParseClientFrame(value)
+			if (!parsedFrame.ok) {
+				logWarn('ws invalid client frame', { id: conn.id, error: parsedFrame.error })
 				sendCtrl(conn, { type: 'error', message: 'Invalid client frame.' })
 				return
 			}
 
 			// Control frames go through ctrl stream for a unified flow.
-			sess.streams.ctrl.write(value)
+			sess.streams.ctrl.write(parsedFrame.frame)
 		}
 
 		ws.on('message', (data: RawData, isBinary: boolean) => {
@@ -238,11 +243,13 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 
 		// ctrl-consumer: drive init/ping/resize/stdin from stream
 		streams.ctrl.on('data', (frame: unknown) => {
-			if (!isClientFrame(frame)) {
+			const parsedFrame = safeParseClientFrame(frame)
+			if (!parsedFrame.ok) {
+				logWarn('ws invalid client frame (ctrl stream)', { id: conn.id, error: parsedFrame.error })
 				sendCtrl(conn, { type: 'error', message: 'Invalid client frame.' })
 				return
 			}
-			void handleCtrl(frame)
+			void handleCtrl(parsedFrame.frame)
 		})
 
 		ws.on('close', () => {
@@ -252,12 +259,12 @@ export function attachTerminalWebSocketServer(server: HttpServer): WebSocketServ
 			if (!sess)
 				return
 
-			debugLog('ws close', { id: conn.id })
+			logInfo('ws closed', { id: conn.id })
 			cleanupSession(sess)
 		})
 
 		ws.on('error', (err) => {
-			debugLog('ws error', err)
+			logWarn('ws error', { id: conn.id, error: toErrorMessage(err) })
 		})
 	})
 
