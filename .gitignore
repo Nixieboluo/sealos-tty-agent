@@ -14,6 +14,7 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
@@ -39,4 +40,4 @@ yarn-error.log*
 **/*.tgz
 **/*.log
 package-lock.json
-**/*.bun
+*.tsbuildinfo

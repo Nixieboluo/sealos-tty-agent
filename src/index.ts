@@ -1,5 +1,10 @@
-import { Elysia } from 'elysia'
+import { PORT } from './config.ts'
+import { createHttpServer } from './http-server.ts'
+import { attachTerminalWebSocketServer } from './terminal-ws.ts'
 
-const app = new Elysia().get('/', () => 'Hello Elysia').listen(3000)
+const server = createHttpServer()
+attachTerminalWebSocketServer(server)
 
-console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`)
+server.listen(PORT, () => {
+	console.warn(`sealos-tty-agent listening on http://localhost:${PORT}`)
+})
