@@ -1,7 +1,10 @@
 {
-	"name": "@sealos/tty-protocol-client",
+	"name": "@labring/sealos-tty-client",
 	"type": "module",
 	"version": "0.0.1",
+	"publishConfig": {
+		"access": "public"
+	},
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
@@ -14,10 +17,11 @@
 		"dist"
 	],
 	"scripts": {
+		"prepack": "pnpm run build",
 		"build": "tsc -p tsconfig.build.json",
 		"typecheck": "tsc -p tsconfig.json"
 	},
 	"dependencies": {
-		"@sealos/tty-protocol": "workspace:*"
+		"zod": "^4.3.6"
 	}
 }

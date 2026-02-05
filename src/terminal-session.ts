@@ -1,10 +1,10 @@
 import type { V1Status } from '@kubernetes/client-node'
-import type { ServerFrame } from '@sealos/tty-protocol'
+import type { ServerFrame } from '@labring/sealos-tty-client'
 import type { ExecTarget } from './utils/http-utils.ts'
 import type { WsStreams } from './utils/ws-streams.ts'
 import { pipeline } from 'node:stream'
 import * as k8s from '@kubernetes/client-node'
-import { safeJsonStringify, toErrorMessage } from '@sealos/tty-protocol'
+import { safeJsonStringify, toErrorMessage } from '@labring/sealos-tty-client'
 
 import { loadKubeConfigFromString } from './utils/k8s/kubeconfig.ts'
 import { ResizableStdout } from './utils/k8s/resizable-stdout.ts'

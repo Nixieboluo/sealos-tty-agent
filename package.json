@@ -7,14 +7,17 @@
 		"node": ">=22"
 	},
 	"scripts": {
+		"build": "pnpm -C packages/protocol-client run build",
+		"publish:protocol-client": "pnpm -C packages/protocol-client publish --access public",
 		"dev": "node --watch --watch-path=src --experimental-strip-types src/index.ts",
 		"start": "node --experimental-strip-types src/index.ts",
-		"lint": "eslint \"src/**/*.ts\" \"packages/**/*.ts\" --ignore-pattern \"**/*.d.ts\" --ignore-pattern \"**/dist/**\"",
-		"typecheck": "tsc --noEmit && tsc -b packages/protocol/tsconfig.build.json packages/protocol-client/tsconfig.build.json"
+		"lint": "pnpm run build && eslint \"src/**/*.ts\" \"packages/**/*.ts\" --ignore-pattern \"**/*.d.ts\" --ignore-pattern \"**/dist/**\"",
+		"typecheck": "pnpm run build && tsc --noEmit && pnpm -C packages/protocol-client run typecheck",
+		"check": "pnpm run lint && pnpm run typecheck"
 	},
 	"dependencies": {
 		"@kubernetes/client-node": "^1.4.0",
-		"@sealos/tty-protocol": "workspace:*",
+		"@labring/sealos-tty-client": "workspace:*",
 		"ws": "^8.19.0",
 		"zod": "^4.3.6"
 	},

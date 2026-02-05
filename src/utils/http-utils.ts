@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Buffer } from 'node:buffer'
-import { safeJsonStringify } from '@sealos/tty-protocol'
+import { safeJsonStringify } from '@labring/sealos-tty-client'
 
 export const HTTP_JSON_CONTENT_TYPE = 'application/json; charset=utf-8'
 

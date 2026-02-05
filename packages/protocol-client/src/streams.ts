@@ -1,6 +1,6 @@
-import type { ServerFrame } from '@sealos/tty-protocol'
+import type { ServerFrame } from './protocol.js'
 import type { FetchLike, WsCloseEvent, WsFactory, WsLike } from './types.js'
-import { safeJsonStringify, toErrorMessage } from '@sealos/tty-protocol'
+import { safeJsonStringify, toErrorMessage } from './protocol.js'
 
 export type TerminalStreams = {
 	/**

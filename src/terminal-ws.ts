@@ -1,4 +1,4 @@
-import type { ClientFrame } from '@sealos/tty-protocol'
+import type { ClientFrame } from '@labring/sealos-tty-client'
 import type { Buffer } from 'node:buffer'
 import type { Server as HttpServer, IncomingMessage } from 'node:http'
 import type { Socket } from 'node:net'
@@ -7,7 +7,7 @@ import type WebSocket from 'ws'
 import type { Session, WsConnection } from './terminal-session.ts'
 
 import { randomUUID } from 'node:crypto'
-import { safeParseClientFrame, toErrorMessage } from '@sealos/tty-protocol'
+import { safeParseClientFrame, toErrorMessage } from '@labring/sealos-tty-client'
 import { WebSocketServer } from 'ws'
 
 import { cleanupSession, sendCtrl, startExecIfNeeded } from './terminal-session.ts'

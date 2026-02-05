@@ -6,8 +6,5 @@
 		"rootDir": "./src",
 		"noEmit": true
 	},
-	"references": [
-		{ "path": "../protocol/tsconfig.build.json" }
-	],
 	"include": ["src/**/*.ts"]
 }

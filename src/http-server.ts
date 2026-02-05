@@ -1,7 +1,7 @@
 import type { ExecTarget } from './utils/http-utils.ts'
 import { Buffer } from 'node:buffer'
 import { createServer } from 'node:http'
-import { toErrorMessage } from '@sealos/tty-protocol'
+import { toErrorMessage } from '@labring/sealos-tty-client'
 import { z } from 'zod'
 
 import { Config } from './utils/config.ts'
