@@ -1,10 +1,11 @@
 import type { ExecTarget } from './utils/http-utils.ts'
 import { Buffer } from 'node:buffer'
 import { createServer } from 'node:http'
+import { toErrorMessage } from '@sealos/tty-protocol'
 import { z } from 'zod'
+
 import { Config } from './utils/config.ts'
 import { HTTP_ERRORS, parseUrl, readBody, sendJson, sendJsonError } from './utils/http-utils.ts'
-import { toErrorMessage } from './utils/protocol.ts'
 import { issueWsTicket } from './ws-ticket.ts'
 
 const WsTicketRequestSchema = z.object({

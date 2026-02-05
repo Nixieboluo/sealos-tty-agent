@@ -4,7 +4,7 @@ export default antfu(
 	{
 		formatters: true,
 		typescript: {
-			tsconfigPath: 'tsconfig.json',
+			tsconfigPath: 'tsconfig.eslint.json',
 		},
 		stylistic: {
 			indent: 'tab',

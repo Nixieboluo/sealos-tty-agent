@@ -1,0 +1,23 @@
+{
+	"name": "@sealos/tty-protocol-client",
+	"type": "module",
+	"version": "0.0.1",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json",
+		"typecheck": "tsc -p tsconfig.json"
+	},
+	"dependencies": {
+		"@sealos/tty-protocol": "workspace:*"
+	}
+}

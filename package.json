@@ -9,11 +9,12 @@
 	"scripts": {
 		"dev": "node --watch --watch-path=src --experimental-strip-types src/index.ts",
 		"start": "node --experimental-strip-types src/index.ts",
-		"lint": "eslint \"src/**/*.ts\" --ignore-pattern \"src/**/*.d.ts\"",
-		"typecheck": "tsc --noEmit"
+		"lint": "eslint \"src/**/*.ts\" \"packages/**/*.ts\" --ignore-pattern \"**/*.d.ts\" --ignore-pattern \"**/dist/**\"",
+		"typecheck": "tsc --noEmit && tsc -b packages/protocol/tsconfig.build.json packages/protocol-client/tsconfig.build.json"
 	},
 	"dependencies": {
 		"@kubernetes/client-node": "^1.4.0",
+		"@sealos/tty-protocol": "workspace:*",
 		"ws": "^8.19.0",
 		"zod": "^4.3.6"
 	},
