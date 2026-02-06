@@ -2,6 +2,34 @@
 	"name": "@labring/sealos-tty-client",
 	"type": "module",
 	"version": "0.0.1",
+	"description": "Web Streams API client for sealos-tty-agent (Kubernetes exec terminal over WebSocket).",
+	"author": {
+		"name": "Sealos",
+		"url": "https://sealos.io"
+	},
+	"maintainers": [
+		"Nixieboluo"
+	],
+	"license": "MIT",
+	"homepage": "https://github.com/labring/sealos-tty-agent/tree/main/packages/protocol-client#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/labring-sigs/sealos-tty-agent.git",
+		"directory": "packages/protocol-client"
+	},
+	"bugs": {
+		"url": "https://github.com/labring-sigs/sealos-tty-agent/issues"
+	},
+	"keywords": [
+		"kubernetes",
+		"exec",
+		"terminal",
+		"pty",
+		"websocket",
+		"web-streams",
+		"xterm",
+		"sealos"
+	],
 	"publishConfig": {
 		"access": "public"
 	},
