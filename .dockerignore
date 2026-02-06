@@ -1,0 +1,66 @@
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# Dependencies (will be installed in container)
+node_modules
+**/node_modules
+.pnpm-store
+
+# Build outputs (will be regenerated)
+dist
+**/dist
+coverage
+*.tsbuildinfo
+
+# Local environment
+.env
+.env.local
+.env.*.local
+config.json
+config.*.json
+!config.example.json
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+.editorconfig
+
+# Documentation (not needed for runtime)
+*.md
+
+# CI/CD
+.github
+.gitlab
+.circleci
+
+# Docker files (avoid recursion)
+Dockerfile*
+docker-compose*.yml
+DOCKER.md
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+.pnpm-debug.log*
+
+# Cache
+.cache
+.turbo
+.eslintcache
+.stylelintcache
+
+# Lint config (not needed for runtime)
+eslint.config.mjs
+tsconfig.eslint.json
+
+# Archive files
+*.trace
+*.zip
+*.tar.gz
+*.tgz
